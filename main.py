@@ -2,14 +2,19 @@ import pygame
 import time
 import random
 
+pygame.font.init()
+
 WIN_WIDTH = 500
 WIN_HEIGHT = 800
+STAT_FONT = pygame.font.SysFont("comicsans", 50)
+
 
 bird_imgs = [pygame.transform.scale2x(pygame.image.load(f"flappy_bird/assets/bird{x}.png")) for x in range(1,4)]
 pipe_img = pygame.transform.scale2x(pygame.image.load(f"flappy_bird/assets/pipe.png"))
 bg_img = pygame.transform.scale2x(pygame.image.load(f"flappy_bird/assets/bg.png"))
 base_img = pygame.transform.scale2x(pygame.image.load(f"flappy_bird/assets/base.png"))
 
+MOVE_VEL = 5
 
 class Bird:
     IMGS = bird_imgs
@@ -84,7 +89,6 @@ class Bird:
 
 class Pipe:
     GAP = 200
-    VEL = 5
 
     def __init__(self, x) -> None:
         self.x = x
@@ -106,7 +110,7 @@ class Pipe:
         self.bottom = self.height + self.GAP
 
     def move(self):
-        self.x -= self.VEL
+        self.x -= MOVE_VEL
 
     def draw(self, win):
         win.blit(self.PIPE_TOP, (self.x, self.top))
@@ -126,12 +130,43 @@ class Pipe:
             return True
         
         return False
+    
+class Base:
+    WIN_WIDTH = WIN_WIDTH
+    WIDTH = base_img.get_width()
+    IMG = base_img
 
-def draw_window(win, bird, pipes):
+    def __init__(self, y) -> None:
+        self.x1 = 0
+        self.x2 = self.WIDTH
+        self.y = y
+
+    def move(self):
+        self.x1 -= MOVE_VEL
+        self.x2 -= MOVE_VEL
+
+        if self.x1 + self.WIDTH < 0: # is right edge of the image outside of window
+            self.x1 = self.x2 + self.WIDTH
+        
+        if self.x2 + self.WIDTH < 0: # is right edge of the image outside of window
+            self.x2 = self.x1 + self.WIDTH
+
+    
+    def draw(self, win):
+        win.blit(self.IMG, (self.x1, self.y))
+        win.blit(self.IMG, (self.x2, self.y))
+
+
+def draw_window(win, bird, pipes, base, score):
     win.blit(bg_img, (0,0))
-    bird.draw(win)
     for pipe in pipes:
         pipe.draw(win)
+    base.draw(win)
+    bird.draw(win)
+
+    score_label = STAT_FONT.render(f"Score: {score}", 1, (255,255,255))
+    win.blit(score_label, ((WIN_WIDTH/2)-(score_label.get_width()/2), 20))
+
     pygame.display.update()
 
 
@@ -140,10 +175,13 @@ def main():
     bird = Bird(200,200)
     win = pygame.display.set_mode((WIN_WIDTH, WIN_HEIGHT))
     run = True
+    lost = False
+    score = 0
 
     clock = pygame.time.Clock()
 
     pipes = [Pipe(700)]
+    base = Base(WIN_HEIGHT*9/10)
 
     while run:
         clock.tick(30)
@@ -151,30 +189,34 @@ def main():
             if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
                 run = False
             
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE and not lost:
                 bird.jump()
 
         bird.move()
 
-        rem = []
-        for pipe in pipes:
-            pipe.move()
+        if not lost:
+            base.move()
+            rem = []
+            for pipe in pipes:
+                pipe.move()
 
-            if pipe.collide(bird):
-                print("Hit!")
+                if pipe.collide(bird):
+                    lost = True
+                    print(f"Game over - score: {score}")
 
 
-            if not pipe.passed and pipe.x < bird.x:
-                pipe.passed = True
-                pipes.append(Pipe(WIN_WIDTH))
+                if not pipe.passed and pipe.x < bird.x:
+                    pipe.passed = True
+                    pipes.append(Pipe(WIN_WIDTH))
+                    score += 1
 
-            if pipe.x + pipe.PIPE_TOP.get_width() < 0: # Check if the pipe is to left of the window (outside of view)
-                rem.append(pipe)
-        
-        for r in rem:
-            pipes.remove(r)
+                if pipe.x + pipe.PIPE_TOP.get_width() < 0: # Check if the pipe is to left of the window (outside of view)
+                    rem.append(pipe)
+            
+            for r in rem:
+                pipes.remove(r)
 
-        draw_window(win, bird, pipes)
+        draw_window(win, bird, pipes, base, score)
     
     pygame.quit()
 
